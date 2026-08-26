@@ -8,179 +8,1145 @@ info:
     Идентификаторы ресурсов имеют формат UUID, даты — ISO 8601. Ошибки
     возвращаются как JSON-объекты с текстом сообщения.
   version: 1.0.0
-
 servers:
-  - url: http://localhost:{port}/api/v1
-    description: Локальный сервер
-    variables:
-      port:
-        default: "8080"
-        description: Порт HTTP-сервера
-
+- url: http://localhost:{port}/api/v1
+  description: Локальный сервер
+  variables:
+    port:
+      default: '8080'
+      description: Порт HTTP-сервера
 tags:
-  - name: System
-    description: Служебные методы API
-  - name: Clients
-    description: Управление клиентами
-  - name: Products
-    description: Управление товарами и остатками
-  - name: Suppliers
-    description: Управление поставщиками
-  - name: Images
-    description: Управление изображениями товаров
-
+- name: System
+  description: Служебные методы API
+- name: Clients
+  description: Управление клиентами
+- name: Products
+  description: Управление товарами и остатками
+- name: Suppliers
+  description: Управление поставщиками
+- name: Images
+  description: Управление изображениями товаров
 paths:
-  /health:
+  "/health":
     get:
-      tags: [System]
+      tags:
+      - System
       summary: Проверить состояние API
       description: Возвращает состояние HTTP-сервера и готовность API принимать запросы.
       operationId: healthCheck
       responses:
-        "200":
+        '200':
           description: API работает
           content:
             application/json:
               schema:
                 type: object
-                required: [status]
+                required:
+                - status
                 properties:
                   status:
                     type: string
                     description: Текущее состояние API
-                    enum: [ok]
+                    enum:
+                    - ok
               example:
                 status: ok
-        "500":
+        '500':
           description: API не готово принимать запросы
           content:
             application/json:
               schema:
                 type: object
-                required: [status]
+                required:
+                - status
                 properties:
                   status:
                     type: string
               example:
                 status: unavailable
-
-  /health/live:
+  "/health/live":
     get:
-      tags: [System]
+      tags:
+      - System
       summary: Проверить работоспособность процесса
       description: |
         Liveness-проверка подтверждает, что процесс API запущен и отвечает.
         Метод не проверяет доступность внешних зависимостей.
       operationId: livenessCheck
       responses:
-        "200":
+        '200':
           description: Процесс API работает
           content:
             application/json:
               schema:
                 type: object
-                required: [status]
+                required:
+                - status
                 properties:
                   status:
                     type: string
-                    enum: [ok]
+                    enum:
+                    - ok
               example:
                 status: ok
-
-  /health/ready:
+  "/health/ready":
     get:
-      tags: [System]
+      tags:
+      - System
       summary: Проверить готовность API
       description: |
         Readiness-проверка подтверждает, что API и необходимые зависимости
         готовы обслуживать входящие запросы.
       operationId: readinessCheck
       responses:
-        "200":
+        '200':
           description: API готово принимать запросы
           content:
             application/json:
               schema:
                 type: object
-                required: [status]
+                required:
+                - status
                 properties:
                   status:
                     type: string
-                    enum: [ok]
+                    enum:
+                    - ok
               example:
                 status: ok
-        "503":
+        '503':
           description: API или его зависимости ещё не готовы
           content:
             application/json:
               schema:
                 type: object
-                required: [status]
+                required:
+                - status
                 properties:
                   status:
                     type: string
-                    enum: [unavailable]
+                    enum:
+                    - unavailable
               example:
                 status: unavailable
-
-  /clients:
-    $ref: "./clients.yaml#/paths/collection"
-  /clients/{clientId}:
-    $ref: "./clients.yaml#/paths/item"
-  /clients/{clientId}/address:
-    $ref: "./clients.yaml#/paths/address"
-  /products:
-    $ref: "./products.yaml#/paths/collection"
-  /products/{productId}:
-    $ref: "./products.yaml#/paths/item"
-  /products/{productId}/stock:
-    $ref: "./products.yaml#/paths/stock"
-  /suppliers:
-    $ref: "./suppliers.yaml#/paths/collection"
-  /suppliers/{supplierId}:
-    $ref: "./suppliers.yaml#/paths/item"
-  /suppliers/{supplierId}/address:
-    $ref: "./suppliers.yaml#/paths/address"
-  /products/{productId}/image:
-    $ref: "./images.yaml#/paths/productImage"
-  /images/{imageId}:
-    $ref: "./images.yaml#/paths/image"
-
+  "/clients":
+    post:
+      tags:
+      - Clients
+      summary: Добавить клиента
+      operationId: createClient
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ClientCreate"
+            example:
+              client_name: Иван
+              client_surname: Иванов
+              birthday: '1990-05-17'
+              gender: male
+              registration_date: '2026-08-26'
+              address:
+                country: Россия
+                city: Москва
+                street: Тверская улица, 10
+      responses:
+        '201':
+          description: Клиент создан
+          headers:
+            Location:
+              description: URL созданного клиента
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Client"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '409':
+          "$ref": "#/components/responses/IdempotencyConflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    get:
+      tags:
+      - Clients
+      summary: Получить клиентов
+      description: |
+        Для поиска по имени и фамилии передайте одновременно `client_name` и
+        `client_surname`. Если фильтры не заданы, возвращаются все клиенты.
+        `limit` и `offset` необязательны; без них список не ограничивается.
+        При отсутствии данных возвращается пустой массив.
+      operationId: getClients
+      parameters:
+      - "$ref": "#/components/parameters/ClientName"
+      - "$ref": "#/components/parameters/ClientSurname"
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/Offset"
+      responses:
+        '200':
+          description: Список клиентов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Client"
+              examples:
+                result:
+                  summary: Найденные клиенты
+                  value:
+                  - id: b408cdff-bd44-4d9b-86b1-b140d3da00e7
+                    client_name: Иван
+                    client_surname: Иванов
+                    birthday: '1990-05-17'
+                    gender: male
+                    registration_date: '2026-08-26'
+                    address:
+                      id: 53c7c1b0-e2cd-4cc8-9689-d56145c54a9b
+                      country: Россия
+                      city: Москва
+                      street: Тверская улица, 10
+                empty:
+                  summary: Клиенты не найдены
+                  value: []
+        '400':
+          "$ref": "#/components/responses/InvalidParameters"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/clients/{clientId}":
+    parameters:
+    - "$ref": "#/components/parameters/ClientId"
+    delete:
+      tags:
+      - Clients
+      summary: Удалить клиента
+      operationId: deleteClient
+      responses:
+        '204':
+          description: Клиент удалён или уже отсутствовал
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/clients/{clientId}/address":
+    parameters:
+    - "$ref": "#/components/parameters/ClientId"
+    get:
+      tags:
+      - Clients
+      summary: Получить адрес клиента
+      operationId: getClientAddress
+      responses:
+        '200':
+          description: Адрес клиента
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Address"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    patch:
+      tags:
+      - Clients
+      summary: Изменить адрес клиента
+      operationId: updateClientAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AddressCreate"
+            example:
+              country: Россия
+              city: Москва
+              street: Тверская улица, 10
+      responses:
+        '200':
+          description: Адрес клиента изменён
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Address"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/products":
+    post:
+      tags:
+      - Products
+      summary: Добавить товар
+      operationId: createProduct
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ProductCreate"
+            example:
+              name: Холодильник Frost 3000
+              category: Холодильники
+              price: 54990.0
+              available_stock: 12
+              last_update_date: '2026-08-26'
+              supplier_id: 7116b493-97ab-472f-8ae2-b34ed382619c
+              image_id: 1e07a39f-d7d1-49f0-bc33-80f53f6857d6
+      responses:
+        '201':
+          description: Товар создан
+          headers:
+            Location:
+              description: URL созданного товара
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Product"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          description: Поставщик или изображение не найдены
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example:
+                code: SUPPLIER_NOT_FOUND
+                message: supplier not found
+        '409':
+          "$ref": "#/components/responses/IdempotencyConflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    get:
+      tags:
+      - Products
+      summary: Получить все доступные товары
+      description: |
+        Возвращает товары с `available_stock` больше нуля. Если таких товаров
+        нет, возвращается пустой массив.
+      operationId: getAvailableProducts
+      responses:
+        '200':
+          description: Список доступных товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Product"
+              examples:
+                result:
+                  summary: Доступные товары
+                  value:
+                  - id: '0866613a-d3d6-449d-99d4-d821c5755b0b'
+                    name: Холодильник Frost 3000
+                    category: Холодильники
+                    price: 54990.0
+                    available_stock: 12
+                    last_update_date: '2026-08-26'
+                    supplier_id: 7116b493-97ab-472f-8ae2-b34ed382619c
+                    image_id: 1e07a39f-d7d1-49f0-bc33-80f53f6857d6
+                empty:
+                  summary: Доступные товары отсутствуют
+                  value: []
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/products/{productId}":
+    parameters:
+    - "$ref": "#/components/parameters/ProductId"
+    get:
+      tags:
+      - Products
+      summary: Получить товар по идентификатору
+      operationId: getProductById
+      responses:
+        '200':
+          description: Данные товара
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Product"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    delete:
+      tags:
+      - Products
+      summary: Удалить товар
+      operationId: deleteProduct
+      responses:
+        '204':
+          description: Товар удалён или уже отсутствовал
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/products/{productId}/stock":
+    parameters:
+    - "$ref": "#/components/parameters/ProductId"
+    patch:
+      tags:
+      - Products
+      summary: Уменьшить количество товара
+      description: |
+        Уменьшает `available_stock` на указанное положительное количество.
+        Остаток товара не может стать отрицательным.
+      operationId: decreaseProductStock
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/StockDecrease"
+            example:
+              quantity: 2
+      responses:
+        '200':
+          description: Остаток товара уменьшен
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Product"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          description: Недостаточно товара или конфликт ключа идемпотентности
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+              examples:
+                insufficientStock:
+                  summary: Недостаточно товара
+                  value:
+                    code: INSUFFICIENT_STOCK
+                    message: insufficient stock
+                idempotencyConflict:
+                  summary: Ключ использован с другим запросом
+                  value:
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: idempotency key is already used with a different request
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/suppliers":
+    post:
+      tags:
+      - Suppliers
+      summary: Добавить поставщика
+      operationId: createSupplier
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SupplierCreate"
+            example:
+              name: ООО БытТехника
+              phone_number: "+7 495 123-45-67"
+              address:
+                country: Россия
+                city: Москва
+                street: Промышленная улица, 5
+      responses:
+        '201':
+          description: Поставщик создан
+          headers:
+            Location:
+              description: URL созданного поставщика
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Supplier"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '409':
+          "$ref": "#/components/responses/IdempotencyConflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    get:
+      tags:
+      - Suppliers
+      summary: Получить всех поставщиков
+      description: Если поставщики отсутствуют, возвращается пустой массив.
+      operationId: getSuppliers
+      responses:
+        '200':
+          description: Список поставщиков
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Supplier"
+              examples:
+                result:
+                  value:
+                  - id: 7116b493-97ab-472f-8ae2-b34ed382619c
+                    name: ООО БытТехника
+                    phone_number: "+7 495 123-45-67"
+                    address:
+                      id: dcab51ee-44cf-4342-bcda-4b542ef3044b
+                      country: Россия
+                      city: Москва
+                      street: Промышленная улица, 5
+                empty:
+                  value: []
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/suppliers/{supplierId}":
+    parameters:
+    - "$ref": "#/components/parameters/SupplierId"
+    get:
+      tags:
+      - Suppliers
+      summary: Получить поставщика по идентификатору
+      operationId: getSupplierById
+      responses:
+        '200':
+          description: Данные поставщика
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Supplier"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    delete:
+      tags:
+      - Suppliers
+      summary: Удалить поставщика
+      operationId: deleteSupplier
+      responses:
+        '204':
+          description: Поставщик удалён или уже отсутствовал
+        '409':
+          description: Поставщик связан с товарами и не может быть удалён
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example:
+                code: SUPPLIER_IN_USE
+                message: supplier is used by products
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/suppliers/{supplierId}/address":
+    parameters:
+    - "$ref": "#/components/parameters/SupplierId"
+    get:
+      tags:
+      - Suppliers
+      summary: Получить адрес поставщика
+      operationId: getSupplierAddress
+      responses:
+        '200':
+          description: Адрес поставщика
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Address"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    patch:
+      tags:
+      - Suppliers
+      summary: Изменить адрес поставщика
+      operationId: updateSupplierAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AddressCreate"
+            example:
+              country: Россия
+              city: Санкт-Петербург
+              street: Невский проспект, 25
+      responses:
+        '200':
+          description: Адрес поставщика изменён
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Address"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/products/{productId}/image":
+    parameters:
+    - "$ref": "#/components/parameters/ProductId"
+    post:
+      tags:
+      - Images
+      summary: Добавить изображение товара
+      description: Загружает бинарные данные изображения и связывает их с товаром.
+      operationId: createProductImage
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Изображение добавлено
+          headers:
+            Location:
+              description: URL созданного изображения
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ImageMetadata"
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          description: Товар не найден
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example:
+                code: PRODUCT_NOT_FOUND
+                message: product not found
+        '409':
+          description: У товара уже есть изображение
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example:
+                code: IMAGE_ALREADY_EXISTS
+                message: product already has an image
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    get:
+      tags:
+      - Images
+      summary: Скачать изображение товара
+      operationId: downloadProductImage
+      responses:
+        '200':
+          "$ref": "#/components/responses/BinaryImage"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+  "/images/{imageId}":
+    parameters:
+    - "$ref": "#/components/parameters/ImageId"
+    get:
+      tags:
+      - Images
+      summary: Скачать изображение по идентификатору
+      operationId: downloadImageById
+      responses:
+        '200':
+          "$ref": "#/components/responses/BinaryImage"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    put:
+      tags:
+      - Images
+      summary: Заменить изображение
+      description: Полностью заменяет бинарные данные существующего изображения.
+      operationId: replaceImage
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '204':
+          description: Изображение заменено
+        '400':
+          "$ref": "#/components/responses/ValidationError"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+    delete:
+      tags:
+      - Images
+      summary: Удалить изображение
+      operationId: deleteImage
+      responses:
+        '204':
+          description: Изображение удалено или уже отсутствовало
+        '500':
+          "$ref": "#/components/responses/InternalError"
 components:
   schemas:
-    Error:
-      $ref: "./common.yaml#/schemas/Error"
     Address:
-      $ref: "./common.yaml#/schemas/Address"
+      type: object
+      required:
+      - id
+      - country
+      - city
+      - street
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        country:
+          type: string
+          minLength: 1
+          maxLength: 100
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        street:
+          type: string
+          minLength: 1
+          maxLength: 255
+      example:
+        id: 53c7c1b0-e2cd-4cc8-9689-d56145c54a9b
+        country: Россия
+        city: Москва
+        street: Тверская улица, 10
+    Error:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          description: Стабильный машиночитаемый код ошибки
+          example: RESOURCE_NOT_FOUND
+        message:
+          type: string
+          description: Понятное человеку описание ошибки
     AddressCreate:
-      $ref: "./common.yaml#/schemas/AddressCreate"
+      type: object
+      additionalProperties: false
+      required:
+      - country
+      - city
+      - street
+      properties:
+        country:
+          type: string
+          minLength: 1
+          maxLength: 100
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        street:
+          type: string
+          minLength: 1
+          maxLength: 255
+      example:
+        country: Россия
+        city: Москва
+        street: Тверская улица, 10
     Client:
-      $ref: "./clients.yaml#/schemas/Client"
+      type: object
+      required:
+      - id
+      - client_name
+      - client_surname
+      - birthday
+      - gender
+      - registration_date
+      - address
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        client_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        client_surname:
+          type: string
+          minLength: 1
+          maxLength: 100
+        birthday:
+          type: string
+          format: date
+        gender:
+          type: string
+          minLength: 1
+          maxLength: 50
+        registration_date:
+          type: string
+          format: date
+        address:
+          "$ref": "#/components/schemas/Address"
+      example:
+        id: b408cdff-bd44-4d9b-86b1-b140d3da00e7
+        client_name: Иван
+        client_surname: Иванов
+        birthday: '1990-05-17'
+        gender: male
+        registration_date: '2026-08-26'
+        address:
+          id: 53c7c1b0-e2cd-4cc8-9689-d56145c54a9b
+          country: Россия
+          city: Москва
+          street: Тверская улица, 10
     ClientCreate:
-      $ref: "./clients.yaml#/schemas/ClientCreate"
+      type: object
+      additionalProperties: false
+      required:
+      - client_name
+      - client_surname
+      - birthday
+      - gender
+      - address
+      properties:
+        client_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        client_surname:
+          type: string
+          minLength: 1
+          maxLength: 100
+        birthday:
+          type: string
+          format: date
+        gender:
+          type: string
+          minLength: 1
+          maxLength: 50
+        registration_date:
+          type: string
+          format: date
+          description: Если не задана, сервер использует текущую дату
+        address:
+          "$ref": "#/components/schemas/AddressCreate"
     Product:
-      $ref: "./products.yaml#/schemas/Product"
+      type: object
+      required:
+      - id
+      - name
+      - category
+      - price
+      - available_stock
+      - last_update_date
+      - supplier_id
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        category:
+          type: string
+          minLength: 1
+          maxLength: 100
+        price:
+          type: number
+          format: double
+          minimum: 0
+        available_stock:
+          type: integer
+          format: int64
+          minimum: 0
+        last_update_date:
+          type: string
+          format: date
+        supplier_id:
+          type: string
+          format: uuid
+        image_id:
+          type: string
+          format: uuid
+          nullable: true
+      example:
+        id: '0866613a-d3d6-449d-99d4-d821c5755b0b'
+        name: Холодильник Frost 3000
+        category: Холодильники
+        price: 54990.0
+        available_stock: 12
+        last_update_date: '2026-08-26'
+        supplier_id: 7116b493-97ab-472f-8ae2-b34ed382619c
+        image_id: 1e07a39f-d7d1-49f0-bc33-80f53f6857d6
     ProductCreate:
-      $ref: "./products.yaml#/schemas/ProductCreate"
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - category
+      - price
+      - available_stock
+      - supplier_id
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        category:
+          type: string
+          minLength: 1
+          maxLength: 100
+        price:
+          type: number
+          format: double
+          minimum: 0
+        available_stock:
+          type: integer
+          format: int64
+          minimum: 0
+        last_update_date:
+          type: string
+          format: date
+          description: Если не задана, сервер использует текущую дату
+        supplier_id:
+          type: string
+          format: uuid
+        image_id:
+          type: string
+          format: uuid
+          nullable: true
     StockDecrease:
-      $ref: "./products.yaml#/schemas/StockDecrease"
+      type: object
+      additionalProperties: false
+      required:
+      - quantity
+      properties:
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
     Supplier:
-      $ref: "./suppliers.yaml#/schemas/Supplier"
+      type: object
+      required:
+      - id
+      - name
+      - phone_number
+      - address
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_number:
+          type: string
+          minLength: 5
+          maxLength: 30
+        address:
+          "$ref": "#/components/schemas/Address"
+      example:
+        id: 7116b493-97ab-472f-8ae2-b34ed382619c
+        name: ООО БытТехника
+        phone_number: "+7 495 123-45-67"
+        address:
+          id: dcab51ee-44cf-4342-bcda-4b542ef3044b
+          country: Россия
+          city: Москва
+          street: Промышленная улица, 5
     SupplierCreate:
-      $ref: "./suppliers.yaml#/schemas/SupplierCreate"
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - phone_number
+      - address
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_number:
+          type: string
+          minLength: 5
+          maxLength: 30
+        address:
+          "$ref": "#/components/schemas/AddressCreate"
     ImageMetadata:
-      $ref: "./images.yaml#/schemas/ImageMetadata"
+      type: object
+      required:
+      - id
+      - product_id
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        product_id:
+          type: string
+          format: uuid
+          readOnly: true
+      example:
+        id: 1e07a39f-d7d1-49f0-bc33-80f53f6857d6
+        product_id: '0866613a-d3d6-449d-99d4-d821c5755b0b'
   parameters:
     IdempotencyKey:
-      $ref: "./common.yaml#/parameters/IdempotencyKey"
+      name: Idempotency-Key
+      in: header
+      description: |
+        Уникальный ключ операции. Повтор с тем же ключом и телом возвращает
+        сохранённый результат; тот же ключ с другим телом приводит к `409`.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+      example: 550e8400-e29b-41d4-a716-446655440000
     ProductId:
-      $ref: "./common.yaml#/parameters/ProductId"
+      name: productId
+      in: path
+      description: Идентификатор товара
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: '0866613a-d3d6-449d-99d4-d821c5755b0b'
+    ClientId:
+      name: clientId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ClientName:
+      name: client_name
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    ClientSurname:
+      name: client_surname
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+    SupplierId:
+      name: supplierId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ImageId:
+      name: imageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     IdempotencyConflict:
-      $ref: "./common.yaml#/responses/IdempotencyConflict"
+      description: Ключ идемпотентности уже использован для другого запроса
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+          example:
+            code: IDEMPOTENCY_KEY_REUSED
+            message: idempotency key is already used with a different request
     ValidationError:
-      $ref: "./common.yaml#/responses/ValidationError"
+      description: Тело запроса не прошло валидацию
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+          example:
+            code: VALIDATION_ERROR
+            message: validation failed
     NotFound:
-      $ref: "./common.yaml#/responses/NotFound"
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+          example:
+            code: RESOURCE_NOT_FOUND
+            message: resource not found
     InternalError:
-      $ref: "./common.yaml#/responses/InternalError"
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+          example:
+            code: INTERNAL_ERROR
+            message: internal server error
+    InvalidParameters:
+      description: Параметры запроса не прошли валидацию
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+          example:
+            code: INVALID_QUERY_PARAMETERS
+            message: invalid query parameters
+    BinaryImage:
+      description: Бинарные данные изображения
+      headers:
+        Content-Disposition:
+          description: Заголовок, инициирующий скачивание файла
+          schema:
+            type: string
+          example: attachment; filename="image.bin"
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
