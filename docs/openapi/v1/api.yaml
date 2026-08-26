@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Shop API
+  description: |
+    REST API магазина бытовой техники.
+
+    API управляет клиентами, товарами, поставщиками и изображениями товаров.
+    Идентификаторы ресурсов имеют формат UUID, даты — ISO 8601. Ошибки
+    возвращаются как JSON-объекты с текстом сообщения.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:{port}/api/v1
+    description: Локальный сервер
+    variables:
+      port:
+        default: "8080"
+        description: Порт HTTP-сервера
+
+tags:
+  - name: System
+    description: Служебные методы API
+  - name: Clients
+    description: Управление клиентами
+  - name: Products
+    description: Управление товарами и остатками
+  - name: Suppliers
+    description: Управление поставщиками
+  - name: Images
+    description: Управление изображениями товаров
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Проверить состояние API
+      description: Возвращает состояние HTTP-сервера и готовность API принимать запросы.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: API работает
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    description: Текущее состояние API
+                    enum: [ok]
+              example:
+                status: ok
+        "500":
+          description: API не готово принимать запросы
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+              example:
+                status: unavailable
+
+  /health/live:
+    get:
+      tags: [System]
+      summary: Проверить работоспособность процесса
+      description: |
+        Liveness-проверка подтверждает, что процесс API запущен и отвечает.
+        Метод не проверяет доступность внешних зависимостей.
+      operationId: livenessCheck
+      responses:
+        "200":
+          description: Процесс API работает
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+              example:
+                status: ok
+
+  /health/ready:
+    get:
+      tags: [System]
+      summary: Проверить готовность API
+      description: |
+        Readiness-проверка подтверждает, что API и необходимые зависимости
+        готовы обслуживать входящие запросы.
+      operationId: readinessCheck
+      responses:
+        "200":
+          description: API готово принимать запросы
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+              example:
+                status: ok
+        "503":
+          description: API или его зависимости ещё не готовы
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [unavailable]
+              example:
+                status: unavailable
+
+  /clients:
+    $ref: "./clients.yaml#/paths/collection"
+  /clients/{clientId}:
+    $ref: "./clients.yaml#/paths/item"
+  /clients/{clientId}/address:
+    $ref: "./clients.yaml#/paths/address"
+  /products:
+    $ref: "./products.yaml#/paths/collection"
+  /products/{productId}:
+    $ref: "./products.yaml#/paths/item"
+  /products/{productId}/stock:
+    $ref: "./products.yaml#/paths/stock"
+  /suppliers:
+    $ref: "./suppliers.yaml#/paths/collection"
+  /suppliers/{supplierId}:
+    $ref: "./suppliers.yaml#/paths/item"
+  /suppliers/{supplierId}/address:
+    $ref: "./suppliers.yaml#/paths/address"
+  /products/{productId}/image:
+    $ref: "./images.yaml#/paths/productImage"
+  /images/{imageId}:
+    $ref: "./images.yaml#/paths/image"
+
+components:
+  schemas:
+    Error:
+      $ref: "./common.yaml#/schemas/Error"
+    Address:
+      $ref: "./common.yaml#/schemas/Address"
+    AddressCreate:
+      $ref: "./common.yaml#/schemas/AddressCreate"
+    Client:
+      $ref: "./clients.yaml#/schemas/Client"
+    ClientCreate:
+      $ref: "./clients.yaml#/schemas/ClientCreate"
+    Product:
+      $ref: "./products.yaml#/schemas/Product"
+    ProductCreate:
+      $ref: "./products.yaml#/schemas/ProductCreate"
+    StockDecrease:
+      $ref: "./products.yaml#/schemas/StockDecrease"
+    Supplier:
+      $ref: "./suppliers.yaml#/schemas/Supplier"
+    SupplierCreate:
+      $ref: "./suppliers.yaml#/schemas/SupplierCreate"
+    ImageMetadata:
+      $ref: "./images.yaml#/schemas/ImageMetadata"
+  parameters:
+    IdempotencyKey:
+      $ref: "./common.yaml#/parameters/IdempotencyKey"
+    ProductId:
+      $ref: "./common.yaml#/parameters/ProductId"
+  responses:
+    IdempotencyConflict:
+      $ref: "./common.yaml#/responses/IdempotencyConflict"
+    ValidationError:
+      $ref: "./common.yaml#/responses/ValidationError"
+    NotFound:
+      $ref: "./common.yaml#/responses/NotFound"
+    InternalError:
+      $ref: "./common.yaml#/responses/InternalError"
