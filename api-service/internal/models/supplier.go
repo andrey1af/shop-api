@@ -1,6 +1,6 @@
 package models
 
-import "github.com/google/uuid"
+import "uuid"
 
 type Supplier struct {
 	ID          uuid.UUID

@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"uuid"
+
 	"github.com/andrey1af/shop-api/api-service/internal/models"
-	"github.com/google/uuid"
 )
 
 type repositoryStub struct {
@@ -34,7 +35,7 @@ func (stub *repositoryStub) Create(_ context.Context, candidate models.Supplier)
 	if stub.createErr != nil {
 		return models.Supplier{}, stub.createErr
 	}
-	if stub.created.ID != uuid.Nil {
+	if stub.created.ID != uuid.Nil() {
 		return stub.created, nil
 	}
 
@@ -83,10 +84,10 @@ func TestCreatePassesSupplierToRepository(t *testing.T) {
 	if got != repository.createInput {
 		t.Fatalf("Create() = %#v, repository received %#v", got, repository.createInput)
 	}
-	if got.ID == uuid.Nil {
+	if got.ID == uuid.Nil() {
 		t.Fatal("Create() did not assign supplier ID")
 	}
-	if got.Address.ID == uuid.Nil {
+	if got.Address.ID == uuid.Nil() {
 		t.Fatal("Create() did not assign address ID")
 	}
 	if got.Name != input.Name || got.PhoneNumber != input.PhoneNumber {

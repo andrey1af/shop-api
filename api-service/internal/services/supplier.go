@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"uuid"
+
 	"github.com/andrey1af/shop-api/api-service/internal/models"
-	"github.com/google/uuid"
 )
 
 var (
@@ -67,7 +68,7 @@ func (service *SupplierService) GetAll(ctx context.Context) ([]models.Supplier, 
 }
 
 func (service *SupplierService) GetByID(ctx context.Context, supplierID uuid.UUID) (models.Supplier, error) {
-	if supplierID == uuid.Nil {
+	if supplierID == uuid.Nil() {
 		return models.Supplier{}, ErrSupplierNotFound
 	}
 
