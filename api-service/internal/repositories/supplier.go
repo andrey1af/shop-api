@@ -143,7 +143,7 @@ func (repository *SupplierRepository) Delete(ctx context.Context, supplierID uui
 
 	if _, err := tx.Exec(ctx, `DELETE FROM suppliers WHERE id = $1`, supplierID); err != nil {
 		if isForeignKeyViolation(err) {
-			return fmt.Errorf("%w: %v", services.ErrSupplierInUse, err)
+			return fmt.Errorf("%w: %w", services.ErrSupplierInUse, err)
 		}
 
 		return fmt.Errorf("delete supplier: %w", err)
