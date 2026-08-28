@@ -1,4 +1,5 @@
-CREATE TABLE addresses (
+-- +goose Up
+CREATE TABLE IF NOT EXISTS addresses (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     country varchar(100) NOT NULL,
     city varchar(100) NOT NULL,
@@ -9,7 +10,7 @@ CREATE TABLE addresses (
     CONSTRAINT addresses_street_not_blank CHECK (btrim(street) <> '')
 );
 
-CREATE TABLE clients (
+CREATE TABLE IF NOT EXISTS clients (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     client_name varchar(100) NOT NULL,
     client_surname varchar(100) NOT NULL,
@@ -27,10 +28,10 @@ CREATE TABLE clients (
         FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE RESTRICT
 );
 
-CREATE INDEX idx_clients_name_surname
+CREATE INDEX IF NOT EXISTS idx_clients_name_surname
     ON clients (client_name, client_surname);
 
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name varchar(255) NOT NULL,
     phone_number varchar(30) NOT NULL,
@@ -43,7 +44,7 @@ CREATE TABLE suppliers (
         FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE RESTRICT
 );
 
-CREATE TABLE product_categories (
+CREATE TABLE IF NOT EXISTS product_categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name varchar(100) NOT NULL,
 
@@ -51,7 +52,7 @@ CREATE TABLE product_categories (
     CONSTRAINT product_categories_name_unique UNIQUE (name)
 );
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name varchar(255) NOT NULL,
     category_id uuid NOT NULL,
@@ -69,17 +70,17 @@ CREATE TABLE products (
         FOREIGN KEY (supplier_id) REFERENCES suppliers (id) ON DELETE RESTRICT
 );
 
-CREATE INDEX idx_products_category_id
+CREATE INDEX IF NOT EXISTS idx_products_category_id
     ON products (category_id);
 
-CREATE INDEX idx_products_supplier_id
+CREATE INDEX IF NOT EXISTS idx_products_supplier_id
     ON products (supplier_id);
 
-CREATE INDEX idx_products_available
+CREATE INDEX IF NOT EXISTS idx_products_available
     ON products (id)
     WHERE available_stock > 0;
 
-CREATE TABLE images (
+CREATE TABLE IF NOT EXISTS images (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id uuid NOT NULL,
     image bytea NOT NULL,
@@ -89,3 +90,11 @@ CREATE TABLE images (
     CONSTRAINT images_product_fk
         FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
+
+-- +goose Down
+DROP TABLE IF EXISTS images;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS product_categories;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS addresses;

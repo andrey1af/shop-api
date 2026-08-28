@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down restart build logs ps migrate test test-api-service lint lint-api-service branch feature bugfix chore
+.PHONY: help up down restart build logs ps migrate test test-api-service test-api-service-e2e lint lint-api-service branch feature bugfix chore
 
 help:
 	@printf '%s\n' \
@@ -15,6 +15,7 @@ help:
 		'make migrate              Apply database migrations' \
 		'make test                 Run all tests' \
 		'make test-api-service     Run api-service tests' \
+		'make test-api-service-e2e Run supplier E2E tests against the Docker service' \
 		'make lint                 Run all linters' \
 		'make lint-api-service     Run api-service linter' \
 		'make feature NAME=login   Create feature/login' \
@@ -47,6 +48,9 @@ test: test-api-service
 
 test-api-service:
 	cd api-service && go test ./...
+
+test-api-service-e2e:
+	cd api-service && go test -tags=e2e -count=1 ./test/supplier
 
 lint: lint-api-service
 

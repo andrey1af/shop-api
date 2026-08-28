@@ -37,6 +37,7 @@ func (h *supplierHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Location", "/api/v1/suppliers/"+supplier.ID.String())
 	writeJSON(w, http.StatusCreated, supplier)
 }
 
