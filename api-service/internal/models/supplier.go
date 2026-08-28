@@ -3,10 +3,10 @@ package models
 import "uuid"
 
 type Supplier struct {
-	ID          uuid.UUID
-	Name        string
-	PhoneNumber string
-	Address     Address
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	PhoneNumber string    `json:"phone_number"`
+	Address     Address   `json:"address"`
 }
 
 type SupplierCreate struct {
