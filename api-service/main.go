@@ -50,7 +50,13 @@ func run() error {
 
 	supplierRepository := repositories.NewSupplierRepository(pool)
 	supplierService := services.NewSupplierService(supplierRepository)
-	router := handlers.NewRouter(supplierService)
+	clientRepository := repositories.NewClientRepository(pool)
+	clientService := services.NewClientService(clientRepository)
+	productRepository := repositories.NewProductRepository(pool)
+	productService := services.NewProductService(productRepository)
+	imageRepository := repositories.NewImageRepository(pool)
+	imageService := services.NewImageService(imageRepository)
+	router := handlers.NewRouterWithProducts(supplierService, clientService, productService, imageService)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddress,

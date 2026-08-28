@@ -10,8 +10,26 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func NewRouter(supplierService supplierService) http.Handler {
-	supplierHandler := &supplierHandler{supplier: supplierService}
+func NewRouter(supplierService supplierService, clientServices ...clientService) http.Handler {
+	var client clientService
+	if len(clientServices) > 0 {
+		client = clientServices[0]
+	}
+
+	return newRouter(supplierService, client, nil, nil)
+}
+
+func NewRouterWithProducts(
+	supplier supplierService,
+	client clientService,
+	product productService,
+	image imageService,
+) http.Handler {
+	return newRouter(supplier, client, product, image)
+}
+
+func newRouter(supplier supplierService, client clientService, product productService, image imageService) http.Handler {
+	supplierHandler := &supplierHandler{supplier: supplier}
 
 	mux := http.NewServeMux()
 
@@ -24,6 +42,33 @@ func NewRouter(supplierService supplierService) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/suppliers/{supplierId}", supplierHandler.delete)
 	mux.HandleFunc("GET /api/v1/suppliers/{supplierId}/address", supplierHandler.getAddress)
 	mux.HandleFunc("PATCH /api/v1/suppliers/{supplierId}/address", supplierHandler.updateAddress)
+
+	if client != nil {
+		clientHandler := &clientHandler{client: client}
+		mux.HandleFunc("POST /api/v1/clients", clientHandler.create)
+		mux.HandleFunc("GET /api/v1/clients", clientHandler.getAll)
+		mux.HandleFunc("DELETE /api/v1/clients/{clientId}", clientHandler.delete)
+		mux.HandleFunc("GET /api/v1/clients/{clientId}/address", clientHandler.getAddress)
+		mux.HandleFunc("PATCH /api/v1/clients/{clientId}/address", clientHandler.updateAddress)
+	}
+
+	if product != nil {
+		productHandler := &productHandler{product: product}
+		mux.HandleFunc("POST /api/v1/products", productHandler.create)
+		mux.HandleFunc("GET /api/v1/products", productHandler.getAvailable)
+		mux.HandleFunc("GET /api/v1/products/{productId}", productHandler.getByID)
+		mux.HandleFunc("DELETE /api/v1/products/{productId}", productHandler.delete)
+		mux.HandleFunc("PATCH /api/v1/products/{productId}/stock", productHandler.decreaseStock)
+	}
+
+	if image != nil {
+		imageHandler := &imageHandler{image: image}
+		mux.HandleFunc("POST /api/v1/products/{productId}/image", imageHandler.createForProduct)
+		mux.HandleFunc("GET /api/v1/products/{productId}/image", imageHandler.getForProduct)
+		mux.HandleFunc("GET /api/v1/images/{imageId}", imageHandler.getByID)
+		mux.HandleFunc("PUT /api/v1/images/{imageId}", imageHandler.replace)
+		mux.HandleFunc("DELETE /api/v1/images/{imageId}", imageHandler.delete)
+	}
 	return mux
 }
 
