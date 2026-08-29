@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 	"uuid"
 
 	"github.com/andrey1af/shop-api/api-service/internal/models"
@@ -26,7 +28,7 @@ type supplierHandler struct {
 func (h *supplierHandler) create(w http.ResponseWriter, r *http.Request) {
 	var supplierCreate models.SupplierCreate
 
-	if err := decodeJSON(w, r, &supplierCreate); err != nil {
+	if err := decodeJSON(w, r, &supplierCreate); err != nil || !validSupplierCreate(supplierCreate) {
 		writeError(w, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
@@ -118,7 +120,7 @@ func (h *supplierHandler) updateAddress(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var addressCreate models.AddressCreate
-	if err := decodeJSON(w, r, &addressCreate); err != nil {
+	if err := decodeJSON(w, r, &addressCreate); err != nil || !validAddressCreate(addressCreate) {
 		writeError(w, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
@@ -138,6 +140,14 @@ func (h *supplierHandler) updateAddress(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, address)
+}
+
+func validSupplierCreate(candidate models.SupplierCreate) bool {
+	phoneLength := utf8.RuneCountInString(candidate.PhoneNumber)
+	return validText(candidate.Name, 255) &&
+		strings.TrimSpace(candidate.PhoneNumber) != "" &&
+		phoneLength >= 5 && phoneLength <= 30 &&
+		validAddressCreate(candidate.Address)
 }
 
 func parseSupplierID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

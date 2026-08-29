@@ -1,9 +1,22 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/andrey1af/shop-api/api-service/internal/idempotency"
 )
+
+type readinessChecker interface {
+	Ping(context.Context) error
+}
+
+type RouterInfrastructure struct {
+	Readiness   readinessChecker
+	Idempotency idempotency.Backend
+	OpenAPI     []byte
+}
 
 type errorResponse struct {
 	Code    string `json:"code"`
@@ -16,7 +29,7 @@ func NewRouter(supplierService supplierService, clientServices ...clientService)
 		client = clientServices[0]
 	}
 
-	return newRouter(supplierService, client, nil, nil)
+	return newRouter(supplierService, client, nil, nil, RouterInfrastructure{})
 }
 
 func NewRouterWithProducts(
@@ -25,18 +38,42 @@ func NewRouterWithProducts(
 	product productService,
 	image imageService,
 ) http.Handler {
-	return newRouter(supplier, client, product, image)
+	return newRouter(supplier, client, product, image, RouterInfrastructure{})
 }
 
-func newRouter(supplier supplierService, client clientService, product productService, image imageService) http.Handler {
+func NewApplicationRouter(
+	supplier supplierService,
+	client clientService,
+	product productService,
+	image imageService,
+	infrastructure RouterInfrastructure,
+) http.Handler {
+	return newRouter(supplier, client, product, image, infrastructure)
+}
+
+func newRouter(
+	supplier supplierService,
+	client clientService,
+	product productService,
+	image imageService,
+	infrastructure RouterInfrastructure,
+) http.Handler {
 	supplierHandler := &supplierHandler{supplier: supplier}
 
 	mux := http.NewServeMux()
 
-	// health
+	// health and API documentation
+	mux.HandleFunc("GET /api/v1/health", healthCheck(infrastructure.Readiness, http.StatusInternalServerError))
+	mux.HandleFunc("GET /api/v1/health/live", healthLive)
+	mux.HandleFunc("GET /api/v1/health/ready", healthCheck(infrastructure.Readiness, http.StatusServiceUnavailable))
+	// Backward-compatible liveness route used by existing deployments.
 	mux.HandleFunc("GET /api/health/live", healthLive)
+	if len(infrastructure.OpenAPI) > 0 {
+		mux.HandleFunc("GET /swagger/index.html", swaggerUI)
+		mux.HandleFunc("GET /swagger/openapi.yaml", serveOpenAPI(infrastructure.OpenAPI))
+	}
 	// supplier
-	mux.HandleFunc("POST /api/v1/suppliers", supplierHandler.create)
+	mux.HandleFunc("POST /api/v1/suppliers", idempotent(infrastructure.Idempotency, supplierHandler.create))
 	mux.HandleFunc("GET /api/v1/suppliers", supplierHandler.getAll)
 	mux.HandleFunc("GET /api/v1/suppliers/{supplierId}", supplierHandler.getByID)
 	mux.HandleFunc("DELETE /api/v1/suppliers/{supplierId}", supplierHandler.delete)
@@ -45,7 +82,7 @@ func newRouter(supplier supplierService, client clientService, product productSe
 
 	if client != nil {
 		clientHandler := &clientHandler{client: client}
-		mux.HandleFunc("POST /api/v1/clients", clientHandler.create)
+		mux.HandleFunc("POST /api/v1/clients", idempotent(infrastructure.Idempotency, clientHandler.create))
 		mux.HandleFunc("GET /api/v1/clients", clientHandler.getAll)
 		mux.HandleFunc("DELETE /api/v1/clients/{clientId}", clientHandler.delete)
 		mux.HandleFunc("GET /api/v1/clients/{clientId}/address", clientHandler.getAddress)
@@ -54,11 +91,11 @@ func newRouter(supplier supplierService, client clientService, product productSe
 
 	if product != nil {
 		productHandler := &productHandler{product: product}
-		mux.HandleFunc("POST /api/v1/products", productHandler.create)
+		mux.HandleFunc("POST /api/v1/products", idempotent(infrastructure.Idempotency, productHandler.create))
 		mux.HandleFunc("GET /api/v1/products", productHandler.getAvailable)
 		mux.HandleFunc("GET /api/v1/products/{productId}", productHandler.getByID)
 		mux.HandleFunc("DELETE /api/v1/products/{productId}", productHandler.delete)
-		mux.HandleFunc("PATCH /api/v1/products/{productId}/stock", productHandler.decreaseStock)
+		mux.HandleFunc("PATCH /api/v1/products/{productId}/stock", idempotent(infrastructure.Idempotency, productHandler.decreaseStock))
 	}
 
 	if image != nil {
@@ -70,6 +107,13 @@ func newRouter(supplier supplierService, client clientService, product productSe
 		mux.HandleFunc("DELETE /api/v1/images/{imageId}", imageHandler.delete)
 	}
 	return mux
+}
+
+func idempotent(backend idempotency.Backend, handler http.HandlerFunc) http.HandlerFunc {
+	if backend == nil {
+		return handler
+	}
+	return idempotency.Require(backend, handler)
 }
 
 func decodeJSON(response http.ResponseWriter, request *http.Request, target any) error {

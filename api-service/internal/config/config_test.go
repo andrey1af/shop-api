@@ -13,6 +13,9 @@ var optionalEnvironment = []string{
 	"HTTP_WRITE_TIMEOUT",
 	"HTTP_IDLE_TIMEOUT",
 	"HTTP_SHUTDOWN_TIMEOUT",
+	"OPENAPI_FILE",
+	"REDIS_URL",
+	"IDEMPOTENCY_TTL",
 	"DB_MAX_CONNS",
 	"DB_MIN_CONNS",
 	"DB_MAX_CONN_LIFETIME",
@@ -36,6 +39,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.HTTPAddress != defaultHTTPAddress {
 		t.Fatalf("HTTPAddress = %q, want %q", cfg.HTTPAddress, defaultHTTPAddress)
 	}
+	if cfg.OpenAPIFile != defaultOpenAPIFile {
+		t.Fatalf("OpenAPIFile = %q, want %q", cfg.OpenAPIFile, defaultOpenAPIFile)
+	}
+	if cfg.RedisURL != defaultRedisURL || cfg.IdempotencyTTL != defaultIdempotencyTTL {
+		t.Fatalf("Redis config = (%q, %s)", cfg.RedisURL, cfg.IdempotencyTTL)
+	}
 	if cfg.DatabasePool.MaxConns != defaultDBMaxConns {
 		t.Fatalf("MaxConns = %d, want %d", cfg.DatabasePool.MaxConns, defaultDBMaxConns)
 	}
@@ -52,6 +61,9 @@ func TestLoadCustomValues(t *testing.T) {
 	t.Setenv("DB_MAX_CONNS", "40")
 	t.Setenv("DB_MIN_CONNS", "8")
 	t.Setenv("DB_CONNECT_TIMEOUT", "3s")
+	t.Setenv("OPENAPI_FILE", "/tmp/openapi.yaml")
+	t.Setenv("REDIS_URL", "redis://redis:6379/2")
+	t.Setenv("IDEMPOTENCY_TTL", "12h")
 
 	cfg, err := Load()
 	if err != nil {
@@ -69,6 +81,12 @@ func TestLoadCustomValues(t *testing.T) {
 	}
 	if cfg.DatabasePool.ConnectTimeout != 3*time.Second {
 		t.Fatalf("ConnectTimeout = %s", cfg.DatabasePool.ConnectTimeout)
+	}
+	if cfg.OpenAPIFile != "/tmp/openapi.yaml" {
+		t.Fatalf("OpenAPIFile = %q", cfg.OpenAPIFile)
+	}
+	if cfg.RedisURL != "redis://redis:6379/2" || cfg.IdempotencyTTL != 12*time.Hour {
+		t.Fatalf("Redis config = (%q, %s)", cfg.RedisURL, cfg.IdempotencyTTL)
 	}
 }
 
@@ -102,6 +120,12 @@ func TestLoadValidation(t *testing.T) {
 			variable:  "DB_MIN_CONNS",
 			value:     "26",
 			errorText: "pool limits",
+		},
+		{
+			name:      "idempotency TTL must cover a claim",
+			variable:  "IDEMPOTENCY_TTL",
+			value:     "30s",
+			errorText: "IDEMPOTENCY_TTL",
 		},
 	}
 

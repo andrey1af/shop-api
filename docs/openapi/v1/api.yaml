@@ -299,7 +299,6 @@ paths:
               available_stock: 12
               last_update_date: '2026-08-26'
               supplier_id: 7116b493-97ab-472f-8ae2-b34ed382619c
-              image_id: 1e07a39f-d7d1-49f0-bc33-80f53f6857d6
       responses:
         '201':
           description: Товар создан
@@ -316,7 +315,7 @@ paths:
         '400':
           "$ref": "#/components/responses/ValidationError"
         '404':
-          description: Поставщик или изображение не найдены
+          description: Поставщик не найден
           content:
             application/json:
               schema:
@@ -894,6 +893,7 @@ components:
           type: string
           format: uuid
           nullable: true
+          readOnly: true
       example:
         id: '0866613a-d3d6-449d-99d4-d821c5755b0b'
         name: Холодильник Frost 3000
@@ -936,10 +936,6 @@ components:
         supplier_id:
           type: string
           format: uuid
-        image_id:
-          type: string
-          format: uuid
-          nullable: true
     StockDecrease:
       type: object
       additionalProperties: false

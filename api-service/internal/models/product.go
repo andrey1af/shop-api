@@ -14,13 +14,12 @@ type Product struct {
 }
 
 type ProductCreate struct {
-	Name           string     `json:"name"`
-	Category       string     `json:"category"`
-	Price          float64    `json:"price"`
-	AvailableStock int64      `json:"available_stock"`
-	LastUpdateDate string     `json:"last_update_date,omitempty"`
-	SupplierID     uuid.UUID  `json:"supplier_id"`
-	ImageID        *uuid.UUID `json:"image_id,omitempty"`
+	Name           string    `json:"name"`
+	Category       string    `json:"category"`
+	Price          *float64  `json:"price"`
+	AvailableStock *int64    `json:"available_stock"`
+	LastUpdateDate string    `json:"last_update_date,omitempty"`
+	SupplierID     uuid.UUID `json:"supplier_id"`
 }
 
 type StockDecrease struct {

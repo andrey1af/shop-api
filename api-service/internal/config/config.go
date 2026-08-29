@@ -18,6 +18,9 @@ const (
 	defaultHTTPWriteTimeout      = 30 * time.Second
 	defaultHTTPIdleTimeout       = 60 * time.Second
 	defaultHTTPShutdownTimeout   = 5 * time.Second
+	defaultOpenAPIFile           = "../docs/openapi/v1/api.yaml"
+	defaultRedisURL              = "redis://localhost:6379/0"
+	defaultIdempotencyTTL        = 24 * time.Hour
 	defaultDBMaxConns            = int32(25)
 	defaultDBMinConns            = int32(5)
 	defaultDBMaxConnLifetime     = 30 * time.Minute
@@ -33,6 +36,9 @@ type Config struct {
 	HTTPWriteTimeout      time.Duration
 	HTTPIdleTimeout       time.Duration
 	HTTPShutdownTimeout   time.Duration
+	OpenAPIFile           string
+	RedisURL              string
+	IdempotencyTTL        time.Duration
 	DatabaseURL           string
 	DatabasePool          database.PoolConfig
 }
@@ -63,6 +69,11 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	idempotencyTTL, err := envDuration("IDEMPOTENCY_TTL", defaultIdempotencyTTL)
+	if err != nil {
+		return nil, err
+	}
+
 	databasePool, err := loadDatabasePool()
 	if err != nil {
 		return nil, err
@@ -75,6 +86,9 @@ func Load() (*Config, error) {
 		HTTPWriteTimeout:      httpWriteTimeout,
 		HTTPIdleTimeout:       httpIdleTimeout,
 		HTTPShutdownTimeout:   httpShutdownTimeout,
+		OpenAPIFile:           env("OPENAPI_FILE", defaultOpenAPIFile),
+		RedisURL:              env("REDIS_URL", defaultRedisURL),
+		IdempotencyTTL:        idempotencyTTL,
 		DatabaseURL:           strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		DatabasePool:          databasePool,
 	}
@@ -85,6 +99,9 @@ func Load() (*Config, error) {
 
 	if cfg.HTTPShutdownTimeout <= 0 {
 		return nil, errors.New("HTTP_SHUTDOWN_TIMEOUT must be greater than zero")
+	}
+	if cfg.IdempotencyTTL < time.Minute {
+		return nil, errors.New("IDEMPOTENCY_TTL must be at least one minute")
 	}
 
 	return cfg, nil

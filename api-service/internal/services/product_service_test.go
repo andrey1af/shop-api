@@ -45,8 +45,8 @@ func TestCreateProductAssignsIDAndLastUpdateDate(t *testing.T) {
 	input := models.ProductCreate{
 		Name:           "Refrigerator",
 		Category:       "Appliances",
-		Price:          54990,
-		AvailableStock: 12,
+		Price:          serviceTestPointer(54990.0),
+		AvailableStock: serviceTestPointer(int64(12)),
 		SupplierID:     uuid.New(),
 	}
 
@@ -65,6 +65,10 @@ func TestCreateProductAssignsIDAndLastUpdateDate(t *testing.T) {
 	}
 }
 
+func serviceTestPointer[T any](value T) *T {
+	return &value
+}
+
 func TestGetAvailableProductsReturnsEmptyArray(t *testing.T) {
 	service := NewProductService(&productRepositoryStub{})
 
@@ -74,6 +78,14 @@ func TestGetAvailableProductsReturnsEmptyArray(t *testing.T) {
 	}
 	if got == nil || len(got) != 0 {
 		t.Fatalf("GetAvailable() = %#v, want non-nil empty slice", got)
+	}
+}
+
+func TestCreateProductRejectsMissingRequiredNumbers(t *testing.T) {
+	service := NewProductService(&productRepositoryStub{})
+	_, err := service.Create(context.Background(), models.ProductCreate{})
+	if !errors.Is(err, ErrInvalidProduct) {
+		t.Fatalf("Create() error = %v, want ErrInvalidProduct", err)
 	}
 }
 

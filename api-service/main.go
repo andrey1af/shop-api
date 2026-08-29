@@ -13,9 +13,30 @@ import (
 	"github.com/andrey1af/shop-api/api-service/internal/config"
 	"github.com/andrey1af/shop-api/api-service/internal/database"
 	"github.com/andrey1af/shop-api/api-service/internal/handlers"
+	"github.com/andrey1af/shop-api/api-service/internal/idempotency"
 	"github.com/andrey1af/shop-api/api-service/internal/repositories"
 	"github.com/andrey1af/shop-api/api-service/internal/services"
+	"github.com/redis/go-redis/v9"
 )
+
+type postgresPinger interface {
+	Ping(context.Context) error
+}
+
+type dependencyReadiness struct {
+	postgres postgresPinger
+	redis    *redis.Client
+}
+
+func (checks dependencyReadiness) Ping(ctx context.Context) error {
+	if err := checks.postgres.Ping(ctx); err != nil {
+		return fmt.Errorf("ping PostgreSQL: %w", err)
+	}
+	if err := checks.redis.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("ping Redis: %w", err)
+	}
+	return nil
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -30,6 +51,15 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	openAPIDocument, err := os.ReadFile(cfg.OpenAPIFile)
+	if err != nil {
+		return fmt.Errorf("read OpenAPI document: %w", err)
+	}
+	redisOptions, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return fmt.Errorf("parse Redis configuration: %w", err)
+	}
+
 	applicationContext, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -42,11 +72,22 @@ func run() error {
 		cfg.DatabasePool.ConnectTimeout,
 	)
 	pool, err := database.NewPostgresPool(startupContext, cfg.DatabaseURL, cfg.DatabasePool)
-	cancelStartup()
 	if err != nil {
+		cancelStartup()
 		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer pool.Close()
+
+	redisClient := redis.NewClient(redisOptions)
+	if err := redisClient.Ping(startupContext).Err(); err != nil {
+		cancelStartup()
+		_ = redisClient.Close()
+		return fmt.Errorf("connect to Redis: %w", err)
+	}
+	cancelStartup()
+	defer func() {
+		_ = redisClient.Close()
+	}()
 
 	supplierRepository := repositories.NewSupplierRepository(pool)
 	supplierService := services.NewSupplierService(supplierRepository)
@@ -56,7 +97,21 @@ func run() error {
 	productService := services.NewProductService(productRepository)
 	imageRepository := repositories.NewImageRepository(pool)
 	imageService := services.NewImageService(imageRepository)
-	router := handlers.NewRouterWithProducts(supplierService, clientService, productService, imageService)
+	idempotencyStore := idempotency.NewStore(redisClient, cfg.IdempotencyTTL)
+	router := handlers.NewApplicationRouter(
+		supplierService,
+		clientService,
+		productService,
+		imageService,
+		handlers.RouterInfrastructure{
+			Readiness: dependencyReadiness{
+				postgres: pool,
+				redis:    redisClient,
+			},
+			Idempotency: idempotencyStore,
+			OpenAPI:     openAPIDocument,
+		},
+	)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddress,

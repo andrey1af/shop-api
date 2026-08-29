@@ -17,8 +17,9 @@ make up
 API будет доступен на `http://localhost:8080`.
 
 ```bash
-curl http://localhost:8080/api/health/live
-curl http://localhost:8080/api/health/ready
+curl http://localhost:8080/api/v1/health/live
+curl http://localhost:8080/api/v1/health/ready
+open http://localhost:8080/swagger/index.html
 ```
 
 `live` проверяет процесс приложения, `ready` дополнительно выполняет `Ping`
@@ -47,7 +48,9 @@ api-service/
 ## Конфигурация
 
 `DATABASE_URL` обязателен. Для Docker Compose он собирается из `POSTGRES_*`; при
-локальном запуске его готовое значение приведено в `.env.example`.
+локальном запуске его готовое значение приведено в `.env.example`. Redis хранит
+ключи идемпотентности и сохранённые HTTP-ответы; время хранения задаётся через
+`IDEMPOTENCY_TTL`.
 `.env.example` является шаблоном, а не runtime-конфигом: Compose автоматически
 читает созданный из него `.env`, а при прямом `go run .` переменные должны быть
 экспортированы в окружение процесса.
@@ -61,6 +64,8 @@ DB_MAX_CONN_LIFETIME=30m
 DB_MAX_CONN_IDLE_TIME=5m
 DB_HEALTH_CHECK_PERIOD=1m
 DB_CONNECT_TIMEOUT=5s
+REDIS_URL=redis://localhost:6379/0
+IDEMPOTENCY_TTL=24h
 ```
 
 Проверки:

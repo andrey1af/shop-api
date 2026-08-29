@@ -131,11 +131,12 @@ func parseProductID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 func validProductCreate(candidate models.ProductCreate) bool {
 	if !validText(candidate.Name, 255) ||
 		!validText(candidate.Category, 100) ||
-		candidate.Price < 0 || math.IsInf(candidate.Price, 0) || math.IsNaN(candidate.Price) ||
-		candidate.Price > 9_999_999_999.99 ||
-		candidate.AvailableStock < 0 ||
-		candidate.SupplierID == uuid.Nil() ||
-		candidate.ImageID != nil {
+		candidate.Price == nil ||
+		candidate.AvailableStock == nil ||
+		*candidate.Price < 0 || math.IsInf(*candidate.Price, 0) || math.IsNaN(*candidate.Price) ||
+		*candidate.Price > 9_999_999_999.99 ||
+		*candidate.AvailableStock < 0 ||
+		candidate.SupplierID == uuid.Nil() {
 		return false
 	}
 

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -56,7 +57,8 @@ func TestSupplierLifecycle(t *testing.T) {
 		},
 	}
 
-	createResponse := api.doJSON(t, http.MethodPost, "/api/v1/suppliers", createPayload)
+	createKey := uuid.New().String()
+	createResponse := api.doJSONWithIdempotencyKey(t, http.MethodPost, "/api/v1/suppliers", createPayload, createKey)
 	created := decodeResponse[supplier](t, createResponse, http.StatusCreated)
 	if created.ID == uuid.Nil() || created.Address.ID == uuid.Nil() {
 		t.Fatalf("create response must contain supplier and address IDs: %#v", created)
@@ -68,6 +70,17 @@ func TestSupplierLifecycle(t *testing.T) {
 	if got := createResponse.Header.Get("Location"); got != wantLocation {
 		t.Fatalf("Location = %q, want %q", got, wantLocation)
 	}
+
+	replayedResponse := api.doJSONWithIdempotencyKey(t, http.MethodPost, "/api/v1/suppliers", createPayload, createKey)
+	replayed := decodeResponse[supplier](t, replayedResponse, http.StatusCreated)
+	if replayed != created || replayedResponse.Header.Get("Location") != wantLocation {
+		t.Fatalf("idempotency replay = %#v with Location %q, want %#v with %q", replayed, replayedResponse.Header.Get("Location"), created, wantLocation)
+	}
+
+	conflictingPayload := maps.Clone(createPayload)
+	conflictingPayload["name"] = "Conflicting supplier"
+	conflictResponse := api.doJSONWithIdempotencyKey(t, http.MethodPost, "/api/v1/suppliers", conflictingPayload, createKey)
+	requireError(t, conflictResponse, http.StatusConflict, "IDEMPOTENCY_KEY_REUSED")
 
 	deleted := false
 	t.Cleanup(func() {
@@ -165,6 +178,14 @@ func newAPIClient(t *testing.T) *apiClient {
 }
 
 func (api *apiClient) doJSON(t *testing.T, method, path string, payload any) *http.Response {
+	idempotencyKey := ""
+	if method == http.MethodPost || method == http.MethodPatch {
+		idempotencyKey = uuid.New().String()
+	}
+	return api.doJSONWithIdempotencyKey(t, method, path, payload, idempotencyKey)
+}
+
+func (api *apiClient) doJSONWithIdempotencyKey(t *testing.T, method, path string, payload any, idempotencyKey string) *http.Response {
 	t.Helper()
 
 	var body io.Reader
@@ -186,6 +207,9 @@ func (api *apiClient) doJSON(t *testing.T, method, path string, payload any) *ht
 	}
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", idempotencyKey)
 	}
 
 	response, err := api.client.Do(request)

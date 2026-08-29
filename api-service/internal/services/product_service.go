@@ -14,6 +14,7 @@ import (
 var (
 	ErrProductNotFound   = errors.New("product not found")
 	ErrInsufficientStock = errors.New("insufficient stock")
+	ErrInvalidProduct    = errors.New("invalid product")
 )
 
 type ProductRepository interface {
@@ -33,6 +34,10 @@ func NewProductService(repository ProductRepository) *ProductService {
 }
 
 func (service *ProductService) Create(ctx context.Context, candidate models.ProductCreate) (models.Product, error) {
+	if candidate.Price == nil || candidate.AvailableStock == nil {
+		return models.Product{}, ErrInvalidProduct
+	}
+
 	lastUpdateDate := candidate.LastUpdateDate
 	if lastUpdateDate == "" {
 		lastUpdateDate = time.Now().Format(time.DateOnly)
@@ -42,11 +47,10 @@ func (service *ProductService) Create(ctx context.Context, candidate models.Prod
 		ID:             uuid.New(),
 		Name:           candidate.Name,
 		Category:       candidate.Category,
-		Price:          candidate.Price,
-		AvailableStock: candidate.AvailableStock,
+		Price:          *candidate.Price,
+		AvailableStock: *candidate.AvailableStock,
 		LastUpdateDate: lastUpdateDate,
 		SupplierID:     candidate.SupplierID,
-		ImageID:        candidate.ImageID,
 	}
 
 	created, err := service.repository.Create(ctx, product)
